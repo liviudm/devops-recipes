@@ -1,0 +1,45 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+CONFIG = File.join(File.dirname(__FILE__), "deployment/config.rb")
+
+required_plugins = %w(vagrant-hostmanager)
+plugins_installed = 0
+required_plugins.each do |plugin|
+  system "vagrant plugin install #{plugin}" unless Vagrant.has_plugin?("#{plugin}")
+  plugins_installed += 1 unless Vagrant.has_plugin?("#{plugin}")
+end
+
+if plugins_installed > 0
+  abort "Vagrant plugins installed. Please re-run `vagrant up`"
+end
+
+if File.exists?(CONFIG)
+  require CONFIG
+else
+  abort "You need to configure `deployment/config.rb`"
+end
+
+Vagrant.configure(2) do |config|
+  config.vm.box = $vm_box
+  config.vm.hostname = $vm_name
+
+  config.hostmanager.enabled = true
+  config.hostmanager.manage_host = true
+  config.hostmanager.aliases = %W(#{$vm_name}.dev)
+
+  unless $forwarded_ports.empty?
+    $forwarded_ports.each do |guest, host|
+      config.vm.network "forwarded_port", guest: guest, host: host, auto_correct: true
+    end
+  end
+
+  unless $private_ip.to_s.empty?
+    config.vm.network "private_network", ip: $private_ip
+  end
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.cpus = $vm_cpus
+    vb.memory = $vm_memory
+  end
+end
